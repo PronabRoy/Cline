@@ -31,9 +31,10 @@ void copyMsg(char* output, char* input)
 }
 
 //Open a file for read.
-bool openFile(FileInfo& fileInfo, std::string fileName)
+bool openFile(FileInfo& fileInfo)
 {
-	fileInfo.inputFile.open(fileInfo.fileName, std::ios::ate | std::ios::binary);
+	std::string fileName = "../file/" + (std::string)fileInfo.fileName;
+	fileInfo.inputFile.open(fileName, std::ios::ate | std::ios::binary);
 	if (fileInfo.inputFile.fail())
 	{
 		std::cout << "Error to open file" << std::endl;
@@ -63,9 +64,10 @@ bool openFile(FileInfo& fileInfo, std::string fileName)
 //Write on a file
 bool writeFile(FileInfo& fileInfo)
 {
+	std::string fileName = "../file/" + (std::string)fileInfo.fileName;
 	if (!fileInfo.outputFile.is_open())
 	{
-		fileInfo.outputFile.open(fileInfo.fileName, std::ios::binary);
+		fileInfo.outputFile.open(fileName, std::ios::binary);
 		if (fileInfo.outputFile.fail())
 		{
 			std::cout << "Error to open file" << std::endl;
@@ -84,4 +86,5 @@ bool writeFile(FileInfo& fileInfo)
 
 	return true;
 }
+
 

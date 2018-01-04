@@ -2,6 +2,9 @@
 //This is for use "Winsock" function. 
 #pragma comment (lib, "ws2_32.lib")
 #pragma warning(disable : 4996)
+#include<opencv2/core/core.hpp>
+#include<opencv2/highgui/highgui.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
 #include <iostream>
 #include <WinSock2.h>
 #include <thread>
@@ -29,8 +32,12 @@ enum PacketType {
 	p_readyToTransmitFile,		//Server return this ID when client requested file exist in server.
 	p_ackOkForFileRequest,		//Client send this ID when client ready to receive and also after receive a packet.
 	p_fileTransmiting,			//Server reurn this ID after send a packet.
-	p_ackForEndFile,			//Client send this ID when it receive full file. 
-	p_availableFile
+	p_ackForEndFile,			//Client send this ID when it receive full file.  
+	P_requestForCam,
+	p_setupCam,
+	p_ackForCam,
+	p_fileTransmitionForCam,
+	p_endOfVideoChat
 };
 
 class Client
@@ -55,7 +62,8 @@ private:
 	std::thread _clientThread;
 	std::mutex _clientMutex;
 	FileInfo _fileInfo;
-
+	stream _stream;
+	 
 
 };
 

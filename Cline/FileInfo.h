@@ -1,5 +1,8 @@
 #pragma once
 #include <fstream> 
+#include<opencv2/core/core.hpp>
+#include<opencv2/highgui/highgui.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
 
 //Struct for File 
 struct FileInfo
@@ -26,4 +29,18 @@ struct FileInfo
 		if (outputFile.is_open())
 			outputFile.close();
 	}
+};
+
+struct stream
+{
+	bool t = false;
+	cv::VideoCapture cap;
+	cv::Mat frame; 
+	int frameDataSize = 0;
+	int totalFrame = 0;
+	int remainingFrame;
+	int frameRead = 0;
+	int height = 0;
+	int width = 0;
+	char *c = new char[1000000];
 };

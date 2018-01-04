@@ -6,6 +6,7 @@ Client::Client(std::string ip, int port)
 	this->_port = port;
 	thisClient = this;
 	_remByte = 0;
+	
 }
 
 bool Client::connectServer()
@@ -32,9 +33,14 @@ bool Client::connectServer()
 	{
 		cout << "Faild to connect server!" << endl; 
 		return false;
-	}
-	else
-		return true;
+	} 
+
+	char hostname[100];
+	//Will get the name of the computer your program is running on and store that info in hostname
+	gethostname(hostname, sizeof(hostname));
+	cout << "Name of Host computer : " << hostname << endl;
+
+	return true;
 }
 
 void Client::sendNRecv()
@@ -47,6 +53,7 @@ void Client::sendNRecv()
 	PacketType packetType;
 	char msg[SIZE_OF_MSG];  
 	char check[] = "File";
+	char cam[] = "cam";
 	while (true)
 	{ 
 		std::cin.getline(msg, sizeof(msg));    
@@ -58,10 +65,10 @@ void Client::sendNRecv()
 			packetType = PacketType::p_fileRequest;
 			sendAll(_clientSock, (char*)&packetType, sizeof(packetType));	//Sending a request for file name.
 			sendAll(_clientSock, (char*)&msg, sizeof(_fileInfo.fileName));					//Sending name of file that we want.
-		}
-		else if (checkMsg(msg, "available"))
+		} 
+		else if (checkMsg(msg, cam))
 		{
-			packetType = PacketType::p_availableFile;
+			packetType = PacketType::P_requestForCam;
 			sendAll(_clientSock, (char*)&packetType, sizeof(packetType));
 		}
 		else
@@ -80,21 +87,14 @@ void Client::sendNRecv()
 void messageHandelerThread(Client* client)
 {
 	char msg[SIZE_OF_MSG];
-	//Use this mutex so that file dosen't corrept and make sure at a time we are receiving only one packet in this case "Message of file".
-	std::unique_lock<std::mutex> uniqueLock(client->_clientMutex, std::defer_lock);
 	PacketType packetType;
 	while (true)
 	{ 
 		if (!recvAll(client->_clientSock, (char*)&packetType, sizeof(packetType)))
 			break; 
-
-		uniqueLock.lock();
-		if (!client->processMessage(packetType))
-		{
-			uniqueLock.unlock();
-			break; 
-		}
-		uniqueLock.unlock();
+		 
+		if (!client->processMessage(packetType)) 
+			break;  
 	}
 
 	cout << "Server expaired!" << endl;
@@ -104,12 +104,56 @@ void messageHandelerThread(Client* client)
 bool Client::processMessage(PacketType& packetType)
 { 
 	int recvData = 0;
-	PacketType pacTyp;
+	PacketType pacTyp; 
 	switch (packetType)
 	{
 	case p_connected:
 	{
 		cout << "Wellcome to the Server........" << endl;
+		break;
+	}
+
+	case p_setupCam:
+	{
+		recvAll(_clientSock, (char*)&_stream.height, sizeof(int));
+		recvAll(_clientSock, (char*)&_stream.width, sizeof(int));
+		recvAll(_clientSock, (char*)&_stream.frameDataSize, sizeof(int));
+
+		_stream.frame = cv::Mat::zeros(_stream.height, _stream.width, CV_8UC3);
+
+		pacTyp = PacketType::p_ackForCam;
+		sendAll(_clientSock, (char*)&pacTyp, sizeof(pacTyp));
+		break;
+	}
+
+	case p_fileTransmitionForCam:
+	{
+		recvAll(_clientSock, _stream.c, _stream.frameDataSize);
+
+		memcpy(_stream.frame.data, _stream.c, _stream.frameDataSize);
+
+		cv::namedWindow("From Client Side", CV_WINDOW_FREERATIO);
+		cv::imshow("From Client Side", _stream.frame);
+
+		switch (cv::waitKey(10))
+		{
+			case 27:
+			{
+				cv::destroyWindow("From Client Side");
+				pacTyp = PacketType::p_endOfVideoChat;
+				sendAll(_clientSock, (char*)&pacTyp, sizeof(pacTyp));
+				break;
+			}
+
+			default:
+			{
+				pacTyp = PacketType::p_ackForCam;
+				sendAll(_clientSock, (char*)&pacTyp, sizeof(pacTyp));
+			}
+
+		} 
+
+
 		break;
 	}
 
@@ -121,16 +165,7 @@ bool Client::processMessage(PacketType& packetType)
 		cout << "Respons back from server : " << msg << endl;
 		break;
 	}
-
-	case p_availableFile:
-	{
-		int fileSize = 0;  
-		recvAll(_clientSock, (char*)&fileSize, sizeof(int));
-		fileSize = ntohs(fileSize);
-		cout << fileSize << endl;
-		break;
-	}
-
+	 
 	case p_readyToTransmitFile:
 	{
 		char msg[50];
@@ -144,19 +179,10 @@ bool Client::processMessage(PacketType& packetType)
 	}
 
 	case p_fileTransmiting:
-	{
-		//Recv a block of file form server
-		{
-			/*while (recvData < sizeof(_fileInfo.memory))
-			{
-				//recv() does not always receive the data in the chunks that it was sent by send(), 
-				int data = recv(_clientSock, _fileInfo.memory, sizeof(_fileInfo.memory), 0);
-				recvData += data;
-			}*/
-		}
+	{  
 		recvAll(_clientSock, _fileInfo.memory, sizeof(_fileInfo.memory));
-		recvAll(_clientSock, (char*)&_fileInfo.remainingByte, sizeof(_fileInfo.remainingByte)); 
-		recvAll(_clientSock, (char*)&_fileInfo.fileSize, sizeof(_fileInfo.fileSize));  
+		recvAll(_clientSock, (char*)&_fileInfo.remainingByte, sizeof(_fileInfo.remainingByte));
+		recvAll(_clientSock, (char*)&_fileInfo.fileSize, sizeof(_fileInfo.fileSize));
 
 		writeFile(_fileInfo);
 		if (_fileInfo.remainingByte < _fileInfo.buffer)
@@ -170,7 +196,8 @@ bool Client::processMessage(PacketType& packetType)
 			sendAll(_clientSock, (char*)&pacTyp, sizeof(pacTyp));
 		}
 		_remByte = _fileInfo.remainingByte;
-		std::cout << _fileInfo.remainingByte << std::endl; 
+		std::cout << _fileInfo.remainingByte << std::endl;
+		 
 		break;
 	}
 	 	
@@ -194,7 +221,6 @@ bool Client::processMessage(PacketType& packetType)
 		break;
 	}
 
-
 	}
 
 	return true;
@@ -206,5 +232,6 @@ Client::~Client()
 		_fileInfo.inputFile.close();
 
 	if (_fileInfo.outputFile.is_open())
-		_fileInfo.outputFile.close();
+		_fileInfo.outputFile.close(); 
+	delete[] _stream.c;
 }
